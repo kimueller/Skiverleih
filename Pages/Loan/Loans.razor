@@ -1,0 +1,206 @@
+﻿@page "/loans"
+@using Skiverleih.Models;
+@using Skiverleih.Services;
+@inject ISkiLoanService loanService
+@inject NavigationManager navMan
+
+<AuthorizeView>
+    <Authorized>
+        <h3>Loans</h3>
+
+        <h4>New loan: <button class="btn btn-success" @onclick="() => AddLoan()">NEW LOAN</button></h4>
+        <h5>
+            Customer: <select @onchange="CustomerChanged" bind-value="@customerID">
+                <option value="0">ALL</option>
+                @foreach (var customer in customers)
+                {
+                    <option value="@customer.CustomerID">@customer.LastName @customer.FirstName</option>
+                }
+            </select>
+        </h5>
+        <h5>
+            Article: <select @onchange="ArticleChanged" bind-value="@articleID">
+                <option value="0">ALL</option>
+                @foreach (var article in articles)
+                {
+                    <option value="@article.ArticleID">@article.Title</option>
+                }
+            </select>
+        </h5>
+        <h5>
+            Returned: <select @onchange="ReturnChanged" bind-value="@isReturned">
+                <option value="2">ALL</option>
+                <option value="1">YES</option>
+                <option value="0">NO</option>
+            </select>
+        </h5>
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Article</th>
+                    <th class="text-center">Loan date</th>
+                    <th class="text-center">Return date</th>
+                    <th class="text-center">Duration</th>
+                    <th class="text-center">Loan price</th>
+                    <th class="text-center">Returned</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var loan in loans)
+                {
+                    <tr class="@(loanID == loan.OnLoanID ? "table-primary" : "")">
+                        <td>@loan.Customer.LastName @loan.Customer.FirstName</td>
+                        <td>@loan.Article.Title</td>
+                        <td class="text-center">@loan.LoanDate.ToShortDateString()</td>
+                        @if (loan.ReturnDate == null)
+                        {
+                            <td class="text-center">-</td>
+                            <td class="text-center">@CalcLoanDuration(loan) d</td>
+
+                        }
+                        @if(loan.ReturnDate != null)
+                        {
+                            <td class="text-center">@loan.ReturnDate.Value.ToShortDateString()</td>
+                            <td class="text-center">@CalcLoanDuration(loan) d</td>
+                        }
+                        <td class="text-center">@CalcLoanPrice(loan)€</td>
+                        @if (loan.Returned == false)
+                        {
+                            <td class="text-center"><button class="btn btn-danger" @onclick="() => ReturnLoan(loan)">↩</button></td>
+                        }
+                        @if (loan.Returned == true)
+                        {
+                            <td class="text-center">✔</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </Authorized>
+    <NotAuthorized>
+        <h1>ACCESS DENIED</h1>
+        <h4>You have to be logged in to view this page...</h4>
+    </NotAuthorized>
+</AuthorizeView>
+
+
+@code {
+    List<OnLoan> loans; //all loans
+
+    //variables for dropdown
+    List<Customer> customers;//list of customer for dropdown
+    List<Article> articles;//list of article for dropdown
+    int customerID = 0;//customerID to filter
+    int articleID = 0;//articleID to filter
+    int isReturned = 2;//loan status to filterö
+
+    //used for the hover effect
+    int loanID = 0;
+
+
+    protected override void OnInitialized()
+    {
+        articles = loanService.GetLoanedArticles();
+        customers = loanService.GetCustomersWithLoan();
+        loans = loanService.GetLoans();
+    }
+
+    /// <summary>
+    /// Sets the loan to returned
+    /// </summary>
+    /// <param name="loan">loan that is getting returned</param>
+    private void ReturnLoan(OnLoan loan)
+    {
+        loanService.ReturnLoan(loan);
+        loans = loanService.GetLoans();
+    }
+
+    /// <summary>
+    /// opens the page to add a new loan
+    /// </summary>
+    private void AddLoan()
+    {
+        navMan.NavigateTo("/new-loan");
+    }
+
+    /// <summary>
+    /// if the drop-down gets changed this function gets called up
+    /// </summary>
+    /// <param name="change"></param>
+    private void CustomerChanged(ChangeEventArgs change)
+    {
+        customerID = Convert.ToInt32(change.Value);//sets the customerID to the changed Value
+        loans = loanService.GetLoans(customerID, articleID, isReturned);//returns a list, that is filtered for customer
+    }
+    private void ArticleChanged(ChangeEventArgs change)
+    {
+        articleID = Convert.ToInt32(change.Value);
+        loans = loanService.GetLoans(customerID, articleID, isReturned);
+    }
+    private void ReturnChanged(ChangeEventArgs change)
+    {
+        isReturned = Convert.ToInt32(change.Value);
+        loans = loanService.GetLoans(customerID, articleID, isReturned);
+    }
+
+    /// <summary>
+    /// Calculates the price of the loan 
+    /// </summary>
+    /// <param name="loan">loan to calculate</param>
+    /// <returns>the price that the loan costs</returns>
+    private string CalcLoanPrice(OnLoan loan)
+    {
+        if(loan.ReturnDate != null)
+        {
+            TimeSpan loanDuration = loan.ReturnDate.Value - loan.LoanDate;
+            decimal price = loanDuration.Days * loan.Article.PricePerDay;
+            //if price is 0, it means that the loan was only for 1 day so the price is priceperday
+            if(price == 0)
+            {
+                price = loan.Article.PricePerDay;
+            }
+            return price.ToString();
+        }
+        else
+        {
+            TimeSpan loanDuration = DateTime.Now - loan.LoanDate;
+            decimal price = loanDuration.Days * loan.Article.PricePerDay;
+            if (price == 0)
+            {
+                price = loan.Article.PricePerDay;
+            }
+            return price.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Calculates the duration of the loan
+    /// </summary>
+    /// <param name="loan">the loan to calculate</param>
+    /// <returns>days of duration</returns>
+    private string CalcLoanDuration(OnLoan loan)
+    {
+        //if the loan is already returned 
+        if (loan.ReturnDate != null)
+        {
+            TimeSpan loanDuration = loan.ReturnDate.Value - loan.LoanDate;
+            //if you loan it and bring it back at the same day, the day should be one not zero
+            if (loanDuration.Days == 0)
+            {
+                return "1";
+            }
+            return loanDuration.Days.ToString();
+        }
+        //if the loan is still active
+        else
+        {
+            TimeSpan loanDuration = DateTime.Now - loan.LoanDate;
+            if(loanDuration.Days == 0)
+            {
+                return "1";
+            }
+            return loanDuration.Days.ToString();
+        }
+    }
+}

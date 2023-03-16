@@ -1,0 +1,83 @@
+﻿@page "/articles"
+@using Skiverleih.Models;
+@using Skiverleih.Services;
+@inject ISkiLoanService loanService
+
+<AuthorizeView>
+    <Authorized>
+        <h3>
+            Articles
+        </h3>
+        <h5>
+            Status:
+            <select @onchange="LoanChanged" bind-value="@loanStatusID">
+                <option value="3">ALL</option>
+                <option value="1">On loan</option>
+                <option value="2">Available</option>
+            </select>
+        </h5>
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th class="text-center">Price/Day</th>
+                    <th class="text-center">Loan count</th>
+                    <th class="text-center">Available</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var article in articles)
+                {
+                    <tr class="@(articleID == article.ArticleID ? "table-primary" : "")">
+                        <td>@article.Title</td>
+                        <td>@article.Category.Title</td>
+                        <td class="text-center">@article.PricePerDay</td>
+                        <td class="text-center">@article.LoanCount</td>
+                        <td class="text-center">
+                            @if (article.LoanStatusID == 1)
+                            {
+                                @isBorrowed
+                            }
+                            else
+                            {
+                                @isNotBorrowed
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </Authorized>
+    <NotAuthorized>
+        <h1>ACCESS DENIED</h1>
+        <h4>You have to be logged in to view this page...</h4>
+    </NotAuthorized>
+</AuthorizeView>
+
+
+@code {
+    List<Article> articles;
+    int loanStatusID = 3;
+    int articleID = 0;
+    string isBorrowed = "❌";
+    string isNotBorrowed = "✔";
+
+    protected override void OnInitialized()
+    {
+        articles = loanService.GetArticles();
+    }
+
+    private void LoanChanged(ChangeEventArgs change)
+    {
+        loanStatusID = Convert.ToInt32(change.Value);
+        if (loanStatusID == 3)
+        {
+            articles = loanService.GetArticles();
+        }
+        else
+        {
+            articles = loanService.GetArticles(loanStatusID);
+        }
+    }
+}

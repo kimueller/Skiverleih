@@ -1,0 +1,65 @@
+﻿@page "/new-loan"
+@using Skiverleih.Models;
+@using Skiverleih.Services;
+@inject ISkiLoanService loanService
+@inject NavigationManager navMan
+
+
+<AuthorizeView Context="authContext">
+    <Authorized>
+        <h3>New Loan</h3>
+
+        <EditForm Model="@loan" Context="editContext" OnValidSubmit="@Submit">
+            <DataAnnotationsValidator />
+            <ValidationSummary></ValidationSummary>
+            <div class="form-group">
+                <label for="customer">Customer</label>
+                <InputSelect @bind-Value="loan.CustomerID" class="form-control">
+                    @foreach (var customer in customers)
+                    {
+                        <option value="@customer.CustomerID">@customer.LastName @customer.FirstName</option>
+                    }
+                    <ValidationMessage For="@(() => loan.CustomerID)" />
+                </InputSelect>
+            </div>
+            <div class="form-group">
+                <label for="article">Article</label>
+                <InputSelect @bind-Value="loan.ArticleID" class="form-control">
+                    @foreach (var article in articles)
+                    {
+                        <option value="@article.ArticleID">@article.Title</option>
+                    }
+                    <ValidationMessage For="@(() => loan.ArticleID)" />
+                </InputSelect>
+            </div>
+            <br />
+            <button class="btn btn-dark">ADD</button>
+        </EditForm>
+    </Authorized>
+    <NotAuthorized>
+        <h1>ACCESS DENIED</h1>
+        <h4>You have to be logged in to view this page...</h4>
+    </NotAuthorized>
+</AuthorizeView>
+
+
+
+@code {
+    OnLoan loan = new OnLoan();
+
+    List<Customer> customers;
+    List<Article> articles;
+
+    protected override void OnInitialized()
+    {
+        customers = loanService.GetCustomers();
+        articles = loanService.GetNotLoanedArticles();
+    }
+
+    private void Submit()
+    {
+        loanService.AddLoan(loan);
+        navMan.NavigateTo("/loans");
+    }
+
+}
